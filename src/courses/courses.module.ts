@@ -7,6 +7,7 @@ import { ContentModule } from '../contents/content.module';
 import { CoursesRepository } from './courses.repository';
 import { CommonModule } from '../common/common.module';
 import { ModelsModule } from '../models/models.module';
+import { DocumentsModule } from '../documents/documents.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { ModelsModule } from '../models/models.module';
     FilesModule,
     ContentModule,
     CommonModule,
+    DocumentsModule,
   ],
   controllers: [CoursesController],
   providers: [

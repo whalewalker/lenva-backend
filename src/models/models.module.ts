@@ -56,8 +56,8 @@ import {
   RecommendationProfileSchema,
   ActivityLog,
   ActivityLogSchema,
-  Upload,
-  UploadSchema,
+  DocumentUpload,
+  DocumentUploadSchema,
 } from './index';
 
 @Module({
@@ -90,7 +90,7 @@ import {
       { name: ReminderSettings.name, schema: ReminderSettingsSchema },
       { name: RecommendationProfile.name, schema: RecommendationProfileSchema },
       { name: ActivityLog.name, schema: ActivityLogSchema },
-      { name: Upload.name, schema: UploadSchema },
+      { name: DocumentUpload.name, schema: DocumentUploadSchema },
     ]),
   ],
   exports: [MongooseModule],

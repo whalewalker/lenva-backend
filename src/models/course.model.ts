@@ -25,6 +25,9 @@ export class Course extends AbstractDocument{
   @Prop()
   thumbnailUrl?: string;
 
+  @Prop()
+  coverImageUrl?: string;
+
   @Prop({ type: [String] })
   tags?: string[];
 
@@ -42,9 +45,6 @@ export class Course extends AbstractDocument{
 
   @Prop({ enum: ['private', 'group', 'public'], default: 'private' })
   visibility: string;
-
-  @Prop()
-  fileHash?: string;
 
   @Prop({
     type: {
@@ -84,6 +84,9 @@ export class Course extends AbstractDocument{
 
   @Prop()
   estimatedDuration?: string;
+
+  @Prop({ type: Types.ObjectId, ref: 'documents' })
+  documentId?: Types.ObjectId;
 }
 
 export const CourseSchema = SchemaFactory.createForClass(Course);

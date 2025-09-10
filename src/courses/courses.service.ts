@@ -1,6 +1,5 @@
 import {
   Injectable,
-  InternalServerErrorException,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
@@ -17,6 +16,7 @@ import {
 } from '@/contents/content.service';
 import { CoursesRepository } from './courses.repository';
 import { RedisService } from '@/common/services/redis.service';
+import { DocumentsService } from '@/documents/documents.service';
 
 @Injectable()
 export class CoursesService {
@@ -29,6 +29,7 @@ export class CoursesService {
     private readonly cloudinaryService: CloudinaryService,
     private readonly redisService: RedisService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly documentsService: DocumentsService,
   ) { }
 
   async createStudentCourse(
@@ -40,33 +41,75 @@ export class CoursesService {
         `Creating course from uploaded file: ${request.file.originalname}`,
       );
 
-      const fileHash = createHash('sha256')
-        .update(request.file.originalname)
+      // Generate document hash based on file content
+      const documentHash = createHash('sha256')
+        .update(request.file.buffer)
         .digest('hex');
+
+      // Check if document already exists
+      let document = await this.documentsService.findByHash(documentHash, user._id);
+      
+      if (!document) {
+        // Create new document
+        document = await this.documentsService.createDocument(
+          request.file,
+          user._id
+        );
+      } else {
+        this.logger.log(`Document already exists with hash: ${documentHash}`);
+      }
+
+      // Check if there's an existing course with this document
+      const existingCourse = await this.courseRepository.findByOneOrNull({
+        createdById: user._id,
+        documentId: new Types.ObjectId(document._id),
+      });
+
+      if (existingCourse) {
+        if (existingCourse.ai?.processingStatus === 'completed') {
+          this.logger.log(`Course already exists and completed for document: ${document._id}`);
+          return existingCourse;
+        } else if (existingCourse.ai?.processingStatus === 'failed') {
+          this.logger.log(`Reprocessing failed course for document: ${document._id}`);
+          // Update the existing course to retry processing
+          const retryUpdate = {
+            ai: { processingStatus: 'pending' },
+          };
+          const updatedCourse = await this.courseRepository.findOneAndUpdate(
+            { _id: existingCourse._id },
+            retryUpdate
+          );
+          
+          // Emit event to retry processing
+          this.eventEmitter.emit('course.uploaded', {
+            file: request.file,
+            user,
+            fileUrl: document.fileUrl,
+            difficulty: request.difficulty,
+            courseId: updatedCourse._id,
+            documentId: document._id,
+          });
+          
+          return updatedCourse;
+        } else {
+          // Course is still processing
+          this.logger.log(`Course is still processing for document: ${document._id}`);
+          return existingCourse;
+        }
+      }
 
       const sanitizedName = request.file.originalname
         .replace(/[^a-zA-Z0-9.-]/g, '_')
         .substring(0, 20);
 
-      const existingCourse = await this.courseRepository.findByOneOrNull({
-        createdById: user._id,
-        fileHash,
-      });
-
-      if (existingCourse && existingCourse.ai?.processingStatus === 'completed') {
-        this.logger.log(`Course already exists for file hash: ${fileHash}`);
-        return existingCourse;
-      }
-
-      const fileMetadata = await this.cloudinaryService.uploadFile(request.file);
-
-      // create basic course details and cache
+      // Create basic course details
       const courseDetails = {
         title: sanitizedName,
         level: request.difficulty,
         createdById: user._id,
-        fileHash,
-        thumbnailUrl: fileMetadata.viewableUrl,
+        documentId: new Types.ObjectId(document._id),
+        thumbnailUrl: document.thumbnailUrl || document.coverImageUrl || document.fileUrl,
+        coverImageUrl: document.coverImageUrl || document.thumbnailUrl || document.fileUrl,
         enrollmentRequired: false,
         courseType: 'student',
         status: 'draft',
@@ -74,7 +117,7 @@ export class CoursesService {
         ai: { processingStatus: 'pending'},
       } as Partial<Course> | Partial<StudentCourse>;
 
-      // create a course entry with pending status
+      // Create a course entry with pending status
       const course = await this.courseRepository.create(courseDetails as unknown as Course);
 
       // Cache the course details in Redis
@@ -88,9 +131,10 @@ export class CoursesService {
       this.eventEmitter.emit('course.uploaded', {
         file: request.file,
         user,
-        fileUrl: fileMetadata.url,
+        fileUrl: document.fileUrl,
         difficulty: request.difficulty,
         courseId: course._id,
+        documentId: document._id,
       });
 
       this.logger.log(
@@ -110,6 +154,7 @@ export class CoursesService {
     fileUrl: string;
     difficulty: Difficulty;
     courseId: string;
+    documentId: string;
   }) {
     try {
       this.logger.log(
@@ -146,6 +191,9 @@ export class CoursesService {
 
       const course = await this.courseRepository.findOneAndUpdate({_id: payload.courseId }, courseData);
 
+      // Update document processing status
+      await this.documentsService.updateProcessingStatus(payload.documentId, 'completed');
+
       // Invalidate the cache
       await this.redisService.delete(`course:${course._id}`);
       await this.redisService.set(`course:${course._id}`, JSON.stringify(course), CoursesService.COURSE_CACHE_TTL);
@@ -172,6 +220,12 @@ export class CoursesService {
             lastProcessedAt: new Date(),
           },
         },
+      );
+      // Update document processing status
+      await this.documentsService.updateProcessingStatus(
+        payload.documentId, 
+        'failed', 
+        error.message
       );
       // Invalidate the cache
       await this.redisService.delete(`course:${payload.courseId}`);

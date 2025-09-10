@@ -20,6 +20,7 @@ import { FilesModule } from './files/files.module';
 import { CommonModule } from './common/common.module';
 import { ContentModule } from './contents/content.module';
 import { ChaptersModule } from './chapters/chapters.module';
+import { DocumentsModule } from './documents/documents.module';
 import mistralConfig from './config/mistral.config';
 
 @Module({
@@ -74,6 +75,7 @@ import mistralConfig from './config/mistral.config';
     FilesModule,
     CommonModule,
     ContentModule,
+    DocumentsModule,
   ],
 })
 export class AppModule {}

@@ -43,7 +43,7 @@ export class ContentService {
       const course = await this.aiService.generate<CourseResponse>({
         prompt: aiPrompt,
         input: extractedText.text,
-      }, AIProvider.OPENROUTER);
+      }, AIProvider.MISTRAL);
 
       this.logger.log(
         `Course generation completed successfully for ${request.file.originalname}`,

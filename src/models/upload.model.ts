@@ -1,46 +1,84 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import { AbstractDocument } from '@/repo/abstract.schema';
 
-export type UploadDocument = Upload & Document;
+export type DocumentUploadDocument = DocumentUpload & Document;
 
-@Schema({ collection: 'uploads', timestamps: true })
-export class Upload {
-  @Prop({ type: Types.ObjectId, auto: true })
-  _id: Types.ObjectId;
+@Schema({ collection: 'documents', timestamps: true })
+export class DocumentUpload extends AbstractDocument {
 
   @Prop({ type: Types.ObjectId, ref: 'users', required: true })
   userId: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, ref: 'courses' })
-  courseId?: Types.ObjectId;
+  @Prop({ required: true })
+  title: string;
 
-  @Prop({ required: true, enum: ['pdf', 'text', 'url', 'file'] })
+  @Prop({ required: true })
+  fileName: string;
+
+  @Prop({ required: true })
+  originalName: string;
+
+  @Prop({ required: true })
+  fileUrl: string;
+
+  @Prop({ required: true })
+  mimeType: string;
+
+  @Prop({ required: true })
+  fileSize: number;
+
+  @Prop({ required: true })
+  fileExtension: string;
+
+  @Prop({ required: true, unique: true })
+  documentHash: string;
+
+  @Prop()
+  coverImageUrl?: string;
+
+  @Prop()
+  thumbnailUrl?: string;
+
+  @Prop()
+  cloudinaryPublicId?: string;
+
+  @Prop({ required: true, enum: ['pdf', 'text', 'url', 'image', 'video', 'audio', 'document', 'other'] })
   type: string;
-
-  @Prop()
-  title?: string;
-
-  @Prop()
-  fileUrl?: string;
 
   @Prop()
   rawText?: string;
 
   @Prop({ type: Object })
-  metadata?: any;
+  metadata?: {
+    pageCount?: number;
+    duration?: number;
+    dimensions?: {
+      width: number;
+      height: number;
+    };
+    author?: string;
+    subject?: string;
+    keywords?: string[];
+    [key: string]: any;
+  };
 
   @Prop({ default: false })
   processed: boolean;
 
-  @Prop({ type: Date, default: Date.now })
-  createdAt: Date;
+  @Prop({ enum: ['pending', 'processing', 'completed', 'failed'], default: 'pending' })
+  processingStatus: string;
 
-  @Prop({ type: Date, default: Date.now })
-  updatedAt: Date;
+  @Prop()
+  processingError?: string;
 }
 
-export const UploadSchema = SchemaFactory.createForClass(Upload);
+export const DocumentUploadSchema = SchemaFactory.createForClass(DocumentUpload);
 
 // Create indexes
-UploadSchema.index({ userId: 1, createdAt: -1 });
-UploadSchema.index({ courseId: 1 });
+DocumentUploadSchema.index({ userId: 1, createdAt: -1 });
+DocumentUploadSchema.index({ type: 1 });
+DocumentUploadSchema.index({ processingStatus: 1 });
+DocumentUploadSchema.index({ fileName: 1 });
+DocumentUploadSchema.index({ mimeType: 1 });
+DocumentUploadSchema.index({ documentHash: 1 });
