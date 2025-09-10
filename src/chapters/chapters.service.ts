@@ -40,8 +40,6 @@ export class ChaptersService {
           title: chapterData.title || `Chapter ${idx + 1}`,
           content: chapterData.content || '',
           description: chapterData.description || '',
-          learningObjectives: chapterData.learningObjectives || [],
-          keyConcepts: chapterData.keyConcepts || [],
           estimatedDuration: chapterData.estimatedDuration || '1 mins',
           order: idx + 1,
         });
@@ -88,16 +86,13 @@ export class ChaptersService {
 
     if(cachedChapters) {
          chapters = JSON.parse(cachedChapters);
-         if(chapters && Array.isArray(chapters) && chapters.length > 0) {
-            return chapters;
-         }  
+         if(chapters && chapters.length > 0) return chapters; 
     }
 
-    chapters = await this.chaptersRepository.find({ courseId: new Types.ObjectId(courseId) });
-    console.log('Fetched Chapters from DB:', chapters);
-    if(!chapters || chapters.length === 0) {
+    chapters = await this.chaptersRepository.find({ courseId });
+    if(chapters.length === 0) {
         this.logger.warn(`No chapters found for course: ${courseId}`);
-        return [];
+        return chapters;
       }
     await this.redisService.set(
       `course:${courseId}:chapters`,

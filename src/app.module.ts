@@ -20,13 +20,14 @@ import { FilesModule } from './files/files.module';
 import { CommonModule } from './common/common.module';
 import { ContentModule } from './contents/content.module';
 import { ChaptersModule } from './chapters/chapters.module';
+import mistralConfig from './config/mistral.config';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
-      load: [databaseConfig, openrouterConfig],
+      load: [databaseConfig, openrouterConfig, mistralConfig],
     }),
 
     ScheduleModule.forRoot(),
@@ -36,7 +37,7 @@ import { ChaptersModule } from './chapters/chapters.module';
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
-        uri: configService.get('MONGODB_URI') || 'mongodb://localhost:27017/lumen',
+        uri: configService.get('MONGODB_URI') || 'mongodb://localhost:27017/lenva',
       }),
       inject: [ConfigService],
     }),

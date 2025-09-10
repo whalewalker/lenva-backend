@@ -45,6 +45,14 @@ export class TextExtractionService {
       // Clean and normalize the extracted text
       const cleanedText = this.cleanText(extractedText);
 
+      // Log content size for monitoring
+      const contentLength = cleanedText.length;
+      this.logger.log(`Extracted text length: ${contentLength} characters`);
+      
+      if (contentLength > 500000) { // ~125k tokens
+        this.logger.warn(`Large content detected (${contentLength} chars). This may exceed API token limits.`);
+      }
+
       const result: ExtractedText = {
         text: cleanedText,
         metadata: {
@@ -56,7 +64,7 @@ export class TextExtractionService {
       };
 
       this.logger.log(
-        `Successfully extracted text from ${file.originalname}`
+        `Successfully extracted text from ${file.originalname} (${cleanedText.length} characters)`
       );
 
       return result;

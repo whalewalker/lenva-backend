@@ -3,12 +3,12 @@ import { ApiProperty } from '@nestjs/swagger';
 import { UserRole } from '../../common/types';
 
 export class RegisterDto {
-  @ApiProperty({ example: 'John Doe' })
+  @ApiProperty({ example: 'Ismail Abdullah' })
   @IsString()
   @MinLength(2)
   name: string;
 
-  @ApiProperty({ example: 'john.doe@example.com' })
+  @ApiProperty({ example: 'ismail.abdullah@gmail.com' })
   @IsEmail()
   email: string;
 

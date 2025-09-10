@@ -49,7 +49,7 @@ export abstract class AbstractRepository<T extends AbstractDocument> {
     }
 
     async find(filter: FilterQuery<T>): Promise<T[]> {
-        return this.model.find(filter).lean<T[]>(true);
+        return this.model.find({...filter}).lean<T[]>(true);
     }
 
     async delete(filter: FilterQuery<T>): Promise<T> {

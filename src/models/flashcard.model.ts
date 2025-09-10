@@ -46,7 +46,7 @@ FlashcardSchema.index({ courseId: 1 });
 FlashcardSchema.index({ chapterId: 1 }, { sparse: true });
 
 // Basic Flashcard Schema
-@Schema()
+@Schema({collection: 'basic_flashcards'})
 export class BasicFlashcard extends Flashcard {
   @Prop({ required: true })
   front: string;
@@ -58,7 +58,7 @@ export class BasicFlashcard extends Flashcard {
 export const BasicFlashcardSchema = SchemaFactory.createForClass(BasicFlashcard);
 
 // Cloze Flashcard Schema
-@Schema()
+@Schema({collection: 'cloze_flashcards'})
 export class ClozeFlashcard extends Flashcard {
   @Prop({ required: true })
   text: string;
@@ -70,7 +70,7 @@ export class ClozeFlashcard extends Flashcard {
 export const ClozeFlashcardSchema = SchemaFactory.createForClass(ClozeFlashcard);
 
 // Image Flashcard Schema
-@Schema()
+@Schema({collection: 'image_flashcards'})
 export class ImageFlashcard extends Flashcard {
   @Prop({ required: true })
   imageUrl: string;

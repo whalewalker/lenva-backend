@@ -1,3 +1,4 @@
+import { AbstractDocument } from '@/repo/abstract.schema';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
@@ -9,10 +10,7 @@ export type QuizDocument = Quiz & Document;
   timestamps: true,
   discriminatorKey: 'quizType'
 })
-export class Quiz {
-  @Prop({ type: Types.ObjectId, auto: true })
-  _id: Types.ObjectId;
-
+export class Quiz  extends AbstractDocument {
   @Prop({ required: true, enum: ['practice', 'timed', 'exam', 'scheduled', 'adaptive'] })
   quizType: string;
 
@@ -71,7 +69,7 @@ QuizSchema.index({ createdById: 1 });
 QuizSchema.index({ visibility: 1 });
 
 // Practice Quiz Schema
-@Schema()
+@Schema({collection: 'practice_quizzes'})
 export class PracticeQuiz extends Quiz {
   // No additional fields for practice quiz
 }
@@ -79,7 +77,7 @@ export class PracticeQuiz extends Quiz {
 export const PracticeQuizSchema = SchemaFactory.createForClass(PracticeQuiz);
 
 // Timed Quiz Schema
-@Schema()
+@Schema({collection: 'timed_quizzes'})
 export class TimedQuiz extends Quiz {
   @Prop({ required: true })
   timeLimitSeconds: number;
@@ -88,7 +86,7 @@ export class TimedQuiz extends Quiz {
 export const TimedQuizSchema = SchemaFactory.createForClass(TimedQuiz);
 
 // Exam Quiz Schema
-@Schema()
+@Schema({collection: 'exam_quizzes'})
 export class ExamQuiz extends Quiz {
   @Prop({ required: true })
   timeLimitSeconds: number;
@@ -106,7 +104,7 @@ export class ExamQuiz extends Quiz {
 export const ExamQuizSchema = SchemaFactory.createForClass(ExamQuiz);
 
 // Scheduled Quiz Schema
-@Schema()
+@Schema({collection: 'scheduled_quizzes'})
 export class ScheduledQuiz extends Quiz {
   @Prop({ required: true })
   windowStart: Date;
@@ -121,7 +119,7 @@ export class ScheduledQuiz extends Quiz {
 export const ScheduledQuizSchema = SchemaFactory.createForClass(ScheduledQuiz);
 
 // Adaptive Quiz Schema
-@Schema()
+@Schema({collection: 'adaptive_quizzes'})
 export class AdaptiveQuiz extends Quiz {
   @Prop({ enum: ['easy', 'medium', 'hard'], default: 'medium' })
   initialDifficulty: string;

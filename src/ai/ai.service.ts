@@ -1,160 +1,139 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-
-export interface OpenRouterRequest {
-  model: string;
-  messages: Array<{
-    role: 'system' | 'user' | 'assistant';
-    content: string;
-  }>;
-  temperature?: number;
-  max_tokens?: number;
-  stream?: boolean;
-}
-
-export interface OpenRouterResponse {
-  id: string;
-  choices: Array<{
-    message: {
-      content: string;
-      role: string;
-    };
-    finish_reason: string;
-  }>;
-  usage: {
-    prompt_tokens: number;
-    completion_tokens: number;
-    total_tokens: number;
-  };
-}
-
-export interface GenerateOptions {
-  prompt: string;
-  input: string;
-  temperature?: number;
-  maxTokens?: number;
-}
+import { IAggregatedAiService, GenerateOptions, AIProvider, ChainOptions } from './interfaces/ai-service.interface';
+import { AiServiceFactory } from './services/ai-service.factory';
+import { Runnable } from '@langchain/core/runnables';
 
 @Injectable()
-export class AIService {
+export class AIService implements IAggregatedAiService {
   private readonly logger = new Logger(AIService.name);
-  private readonly apiKey: string;
-  private readonly baseUrl: string;
-  private readonly defaultModel: string;
 
-  constructor(private readonly configService: ConfigService) {
-    this.apiKey = this.configService.get<string>('openrouter.apiKey');
-    this.baseUrl = this.configService.get<string>('openrouter.baseUrl');
-    this.defaultModel = this.configService.get<string>('openrouter.defaultModel');
+  constructor(private readonly aiServiceFactory: AiServiceFactory) {}
+
+  async generate<T = any>(options: GenerateOptions, provider?: AIProvider): Promise<T> {
+    const requestedProvider = provider || AIProvider.OPENROUTER;
     
-    if (!this.apiKey) {
-      this.logger.warn('OPENROUTER_API_KEY not configured. AI generation will not work.');
-    }
-  }
-
-  async generate<T = any>(options: GenerateOptions): Promise<T> {
-    if (!this.apiKey) {
-      throw new Error('OpenRouter API key not configured');
-    }
-
-    this.logger.log('Generating content with OpenRouter...');
-
     try {
-      const messages = [
-        {
-          role: 'system' as const,
-          content: options.prompt,
-        },
-        {
-          role: 'user' as const,
-          content: options.input,
-        },
-      ];
-
-      const response = await this.makeRequest({
-        model: this.defaultModel,
-        messages,
-        temperature: options.temperature || 0.3,
-        max_tokens: options.maxTokens || 6000,
-      });
-
-      const generatedContent = response.choices[0]?.message?.content;
-      if (!generatedContent) {
-        throw new Error('No content generated from OpenRouter');
-      }
-
-      return this.parse<T>(generatedContent);
+      const aiService = this.aiServiceFactory.getAiService(requestedProvider);
+      return await aiService.generate<T>(options);
     } catch (error) {
-      this.logger.error('Generation failed:', error);
-      throw new Error(`Generation failed: ${error.message}`);
-    }
-  }
-
-  parse<T = any>(content: string): T {
-    try {
-      const jsonRegex = /```json\s*([\s\S]*?)\s*```/;
-      const jsonMatch = jsonRegex.exec(content);
-      if (jsonMatch) {
-        return JSON.parse(jsonMatch[1]);
-      }
-
-      return JSON.parse(content);
-    } catch (error) {
-      this.logger.error('Failed to parse AI response:', error);
-      throw new Error(`Failed to parse AI response: ${error.message}`);
-    }
-  }
-
-  private async makeRequest(request: OpenRouterRequest): Promise<OpenRouterResponse> {
-    try {
-      const response = await fetch(`${this.baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': this.configService.get<string>('openrouter.appUrl'),
-          'X-Title': 'Lenva Learning Platform',
-        },
-        body: JSON.stringify({
-          model: request.model || this.defaultModel,
-          messages: request.messages,
-          temperature: request.temperature || this.configService.get<number>('openrouter.temperature'),
-          max_tokens: request.max_tokens || this.configService.get<number>('openrouter.maxTokens'),
-          stream: request.stream || false,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`OpenRouter API error: ${response.status} - ${errorText}`);
-      }
-
-      const result = await response.json();
-      this.logger.log(`OpenRouter API request successful. Tokens used: ${result.usage?.total_tokens || 'unknown'}`);
+      this.logger.warn(`Primary AI provider (${requestedProvider}) failed:`, error.message);
       
-      return result;
-    } catch (error) {
-      this.logger.error('OpenRouter API request failed:', error);
-      throw new Error(`OpenRouter API request failed: ${error.message}`);
+      const fallbackProvider = requestedProvider === AIProvider.MISTRAL 
+        ? AIProvider.OPENROUTER 
+        : AIProvider.MISTRAL;
+      
+      try {
+        this.logger.log(`Attempting fallback to ${fallbackProvider}...`);
+        const fallbackService = this.aiServiceFactory.getAiService(fallbackProvider);
+        return await fallbackService.generate<T>(options);
+      } catch (fallbackError) {
+        this.logger.error(`Fallback AI provider (${fallbackProvider}) also failed:`, fallbackError.message);
+        throw new Error(`All AI providers failed. Primary: ${error.message}, Fallback: ${fallbackError.message}`);
+      }
     }
   }
 
-  async healthCheck(): Promise<boolean> {
+  async createChain(options: ChainOptions, provider?: AIProvider): Promise<Runnable> {
+    const selectedProvider = provider || AIProvider.OPENROUTER;
+    
     try {
-      if (!this.apiKey) {
-        return false;
-      }
-
-      const response = await fetch(`${this.baseUrl}/models`, {
-        headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-        },
-      });
-
-      return response.ok;
+      const aiService = this.aiServiceFactory.getAiService(selectedProvider);
+      return await aiService.createChain(options);
     } catch (error) {
-      this.logger.warn('OpenRouter health check failed:', error);
-      return false;
+      this.logger.error(`Failed to create chain with ${selectedProvider}:`, error.message);
+      throw error;
     }
+  }
+
+  async runChain<T = any>(chain: Runnable, input: any, provider?: AIProvider): Promise<T> {
+    const selectedProvider = provider || AIProvider.OPENROUTER;
+    
+    try {
+      const aiService = this.aiServiceFactory.getAiService(selectedProvider);
+      return await aiService.runChain<T>(chain, input);
+    } catch (error) {
+      this.logger.error(`Failed to run chain with ${selectedProvider}:`, error.message);
+      throw error;
+    }
+  }
+
+  async *streamGenerate(options: GenerateOptions, provider?: AIProvider): AsyncGenerator<string, void, unknown> {
+    const selectedProvider = provider || AIProvider.OPENROUTER;
+    
+    try {
+      const aiService = this.aiServiceFactory.getAiService(selectedProvider);
+      yield* aiService.streamGenerate(options);
+    } catch (error) {
+      this.logger.error(`Streaming failed with ${selectedProvider}:`, error.message);
+      throw error;
+    }
+  }
+
+  async generateWithRetry<T = any>(
+    options: GenerateOptions, 
+    maxRetries: number = 3, 
+    provider?: AIProvider
+  ): Promise<T> {
+    let lastError: Error;
+    const providersToTry = provider ? [provider] : [AIProvider.OPENROUTER, AIProvider.MISTRAL];
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      for (const currentProvider of providersToTry) {
+        try {
+          this.logger.log(`Attempt ${attempt + 1}/${maxRetries} with provider ${currentProvider}`);
+          return await this.generate<T>(options, currentProvider);
+        } catch (error) {
+          lastError = error;
+          this.logger.warn(`Attempt ${attempt + 1} failed with ${currentProvider}:`, error.message);
+          
+          if (attempt < maxRetries - 1) {
+            await this.delay(Math.pow(2, attempt) * 1000);
+          }
+        }
+      }
+    }
+
+    throw new Error(`All retry attempts failed. Last error: ${lastError.message}`);
+  }
+
+  async batchGenerate<T = any>(
+    requests: GenerateOptions[], 
+    provider?: AIProvider,
+    concurrency: number = 5
+  ): Promise<T[]> {
+    const results: T[] = [];
+    const chunks = this.chunkArray(requests, concurrency);
+
+    for (const chunk of chunks) {
+      const promises = chunk.map(options => this.generate<T>(options, provider));
+      const chunkResults = await Promise.allSettled(promises);
+      
+      for (const result of chunkResults) {
+        if (result.status === 'fulfilled') {
+          results.push(result.value);
+        } else {
+          this.logger.error('Batch request failed:', result.reason);
+          throw new Error(`Batch request failed: ${result.reason.message}`);
+        }
+      }
+    }
+
+    return results;
+  }
+
+  async healthCheck(): Promise<Record<string, boolean>> {
+    return await this.aiServiceFactory.healthCheckAll();
+  }
+
+  private chunkArray<T>(array: T[], size: number): T[][] {
+    const chunks: T[][] = [];
+    for (let i = 0; i < array.length; i += size) {
+      chunks.push(array.slice(i, i + size));
+    }
+    return chunks;
+  }
+
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 }

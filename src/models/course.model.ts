@@ -43,6 +43,9 @@ export class Course extends AbstractDocument{
   @Prop({ enum: ['private', 'group', 'public'], default: 'private' })
   visibility: string;
 
+  @Prop()
+  fileHash?: string;
+
   @Prop({
     type: {
       chapters: { type: Number, default: 0 },
@@ -71,9 +74,16 @@ export class Course extends AbstractDocument{
   ai: {
     lastProcessedAt?: Date;
     processingStatus: string;
-    jobId?: string;
-    fileHash?: string;
   };
+
+  @Prop({ type: [String], default: [] })
+  learningObjectives: string[];
+
+  @Prop({ type: [String], default: [] })
+  keyConcepts: string[];
+
+  @Prop()
+  estimatedDuration?: string;
 }
 
 export const CourseSchema = SchemaFactory.createForClass(Course);
@@ -87,7 +97,7 @@ CourseSchema.index({ tags: 1 });
 CourseSchema.index({ subject: 1, level: 1 });
 
 // Student Course Schema
-@Schema()
+@Schema({collection: 'student_courses'})
 export class StudentCourse extends Course {
   @Prop({ default: false })
   enrollmentRequired: boolean;
@@ -96,7 +106,7 @@ export class StudentCourse extends Course {
 export const StudentCourseSchema = SchemaFactory.createForClass(StudentCourse);
 
 // Educator Course Schema
-@Schema()
+@Schema({collection: 'educator_courses'})
 export class EducatorCourse extends Course {
   @Prop({ type: Types.ObjectId, ref: 'classes', required: true })
   classId: string;
@@ -108,7 +118,7 @@ export class EducatorCourse extends Course {
 export const EducatorCourseSchema = SchemaFactory.createForClass(EducatorCourse);
 
 // Admin Course Schema
-@Schema()
+@Schema({collection: 'admin_courses'})
 export class AdminCourse extends Course {
   @Prop({ default: false })
   featured: boolean;

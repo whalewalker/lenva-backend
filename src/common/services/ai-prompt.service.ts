@@ -22,11 +22,12 @@ export class AIPromptService {
    */
   replaceVariables(
     template: string,
-    variables: Record<string, string>,
+    variables: Record<string, any>,
   ): string {
     let result = template;
     for (const [key, value] of Object.entries(variables)) {
-      result = result.replace(new RegExp(`{{${key}}}`, 'g'), value);
+      const stringValue = String(value);
+      result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), stringValue);
     }
     return result;
   }
@@ -133,12 +134,16 @@ Expected JSON Structure:
   "subject": "Subject area",
   "level": "{{difficulty}}",
   "tags": ["tag1", "tag2", "tag3"],
+  "estimatedDuration": "X minutes or Y hours or Z days or weeks",
+  "learningObjectives": ["Objective 1", "Objective 2"],
+  "keyConcepts": ["Concept 1", "Concept 2"],
   "chapters": [
     {
       "title": "Chapter Title",
-      "content": "Chapter content in markdown format",
-      "order": 1,
-      "assets": []
+      "content": "deep dive chapter content in markdown format with proper structure, examples, and explanations",
+      "description": "Brief chapter description",
+      "estimatedDuration": "X mins",
+      "order": 1
     }
   ]
 }`
@@ -165,8 +170,7 @@ Expected JSON Structure:
 {
   "title": "{{title}}",
   "content": "Detailed chapter content in markdown format with proper structure, examples, and explanations",
-  "order": 1,
-  "assets": []
+  "order": 1
 }`
     );
 

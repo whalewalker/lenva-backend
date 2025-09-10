@@ -106,6 +106,8 @@ export interface CourseResponse {
   title: string;
   description: string;
   learningObjectives: string[];
+  keyConcepts: string[];
+  tags: string[];
   chapters: IChapter[];
   prerequisites: string[];
   difficultyLevel: string;
@@ -140,8 +142,6 @@ export type Status = 'draft' | 'published' | 'archived';
 
 export type Type = 'student' | 'educator' | 'admin';
 
-export type Difficulty = 'easy' | 'medium' | 'hard';
-
-export type Level = 'beginner' | 'intermediate' | 'advanced';
+export type Difficulty = 'beginner' | 'intermediate' | 'advanced';
 
 export type ProcessingStatus = 'pending' | 'processing' | 'completed' | 'failed';

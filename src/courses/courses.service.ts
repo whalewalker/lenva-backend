@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { Types } from 'mongoose';
-import { Course, User } from '@/models';
+import { Course, StudentCourse, User } from '@/models';
 import { Difficulty } from '@/common/types';
 import { CloudinaryService } from '@/files/cloudinary.service';
 import { UploadCourseRequest } from './courses.dto';
@@ -44,42 +44,43 @@ export class CoursesService {
         .update(request.file.originalname)
         .digest('hex');
 
-      // Create a shorter, more manageable file name
-      // Take first 8 characters of hash + sanitized original name (max 50 chars)
-      const shortHash = fileHash.substring(0, 8);
       const sanitizedName = request.file.originalname
         .replace(/[^a-zA-Z0-9.-]/g, '_')
         .substring(0, 20);
-      const fileName = `${shortHash}_${sanitizedName}`;
 
       const existingCourse = await this.courseRepository.findByOneOrNull({
         createdById: user._id,
         fileHash,
       });
 
-      if (existingCourse) {
+      if (existingCourse && existingCourse.ai?.processingStatus === 'completed') {
         this.logger.log(`Course already exists for file hash: ${fileHash}`);
         return existingCourse;
       }
 
-      const fileMetadata = await this.cloudinaryService.uploadFile(
-        request.file,
-        `courses/${user._id}/${fileName}`,
-      );
+      const fileMetadata = await this.cloudinaryService.uploadFile(request.file);
 
       // create basic course details and cache
       const courseDetails = {
         title: sanitizedName,
         level: request.difficulty,
         createdById: user._id,
-        processingStatus: 'pending',
         fileHash,
-      };
+        thumbnailUrl: fileMetadata.viewableUrl,
+        enrollmentRequired: false,
+        courseType: 'student',
+        status: 'draft',
+        visibility: 'private',
+        ai: { processingStatus: 'pending'},
+      } as Partial<Course> | Partial<StudentCourse>;
+
+      // create a course entry with pending status
+      const course = await this.courseRepository.create(courseDetails as unknown as Course);
 
       // Cache the course details in Redis
-      const course = await this.redisService.set(
-        `course:upload:${fileHash}`,
-        JSON.stringify(courseDetails),
+      await this.redisService.set(
+        `course:${course._id}`,
+        JSON.stringify(course),
         CoursesService.COURSE_CACHE_TTL,
       );
 
@@ -87,15 +88,15 @@ export class CoursesService {
       this.eventEmitter.emit('course.uploaded', {
         file: request.file,
         user,
-        fileHash,
         fileUrl: fileMetadata.url,
         difficulty: request.difficulty,
+        courseId: course._id,
       });
 
       this.logger.log(
         `Course creation initiated for file: ${request.file.originalname}`,
       );
-      return course
+      return course;
     } catch (error) {
       this.logger.error('Failed to create course from upload:', error);
       throw new Error(`Failed to create course`);
@@ -106,9 +107,9 @@ export class CoursesService {
   async handleCourseUploadedEvent(payload: {
     file: Express.Multer.File;
     user: User;
-    fileHash: string;
     fileUrl: string;
     difficulty: Difficulty;
+    courseId: string;
   }) {
     try {
       this.logger.log(
@@ -128,12 +129,10 @@ export class CoursesService {
         description: result.description,
         subject: 'General',
         level: result.difficultyLevel,
-        courseType: 'student',
-        status: 'draft',
-        visibility: 'private',
-        createdById: payload.user._id,
-        thumbnailUrl: payload.fileUrl,
-        enrollmentRequired: false,
+        estimatedDuration: result.estimatedTotalDuration,
+        learningObjectives: result.learningObjectives || [],
+        keyConcepts: result.keyConcepts || [],
+        tags: result.tags || [],
         contentStats: {
           chapters: result.chapters?.length || 0,
           quizzes: 0,
@@ -142,14 +141,13 @@ export class CoursesService {
         ai: {
           processingStatus: 'completed',
           lastProcessedAt: new Date(),
-          fileHash: payload.fileHash,
         },
       };
 
-      const course = await this.courseRepository.create(courseData);
+      const course = await this.courseRepository.findOneAndUpdate({_id: payload.courseId }, courseData);
 
       // Invalidate the cache
-      await this.redisService.delete(`course:upload:${payload.fileHash}`);
+      await this.redisService.delete(`course:${course._id}`);
       await this.redisService.set(`course:${course._id}`, JSON.stringify(course), CoursesService.COURSE_CACHE_TTL);
 
       this.logger.log(
@@ -165,6 +163,18 @@ export class CoursesService {
       });
     } catch (error) {
       this.logger.error('Error processing uploaded course event:', error);
+      // Update course status to 'failed' in case of error
+      await this.courseRepository.findOneAndUpdate(
+        { _id: payload.courseId },
+        {
+          ai: {
+            processingStatus: 'failed',
+            lastProcessedAt: new Date(),
+          },
+        },
+      );
+      // Invalidate the cache
+      await this.redisService.delete(`course:${payload.courseId}`);
     }
   }
 

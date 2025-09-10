@@ -19,12 +19,6 @@ export class Chapter extends AbstractDocument {
   @Prop({ default: 0 })
   order: number;
 
-  @Prop({ type: [String], default: [] })
-  learningObjectives: string[];
-
-  @Prop({ type: [String], default: [] })
-  keyConcepts: string[];
-
   @Prop()
   estimatedDuration?: string;
 }

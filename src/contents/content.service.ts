@@ -1,13 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { AIService } from '@/ai/ai.service';
+import { AIProvider } from '@/ai/interfaces/ai-service.interface';
 import { AIPromptService } from '@/common/services/ai-prompt.service';
 import { SchemaService } from '@/common/services/schema.service';
 import { TextExtractionService } from '@/common/services/text-extraction.service';
-import { CourseResponse } from '@/common/types';
+import { CourseResponse, Difficulty } from '@/common/types';
 
 export interface ContentGenerationRequest {
   file: Express.Multer.File;
-  difficulty?: 'easy' | 'medium' | 'hard';
+  difficulty?: Difficulty;
 }
 
 @Injectable()
@@ -42,7 +43,7 @@ export class ContentService {
       const course = await this.aiService.generate<CourseResponse>({
         prompt: aiPrompt,
         input: extractedText.text,
-      })
+      }, AIProvider.OPENROUTER);
 
       this.logger.log(
         `Course generation completed successfully for ${request.file.originalname}`,

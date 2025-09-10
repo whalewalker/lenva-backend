@@ -45,7 +45,7 @@ export class CoursesController {
         },
         difficulty: {
           type: 'string',
-          enum: ['easy', 'medium', 'hard'],
+          enum: ['beginner', 'intermediate', 'advanced'],
           description: 'Difficulty level of the course',
         },
       },
@@ -69,18 +69,17 @@ export class CoursesController {
     return await this.coursesService.createStudentCourse(request, user);
   }
 
+  @Get('/me')
+  @ApiResponse({ status: 200, description: 'Courses found' })
+  async findByUserId(@CurrentUser() user: User) {
+    return await this.coursesService.findByUserId(user._id);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get course by ID' })
   @ApiResponse({ status: 200, description: 'Course found' })
   @ApiResponse({ status: 404, description: 'Course not found' })
   async findOne(@Param('id') id: string) {
     return await this.coursesService.findById(id);
-  }
-
-  @Get('/me')
-  @ApiOperation({ summary: 'Get courses by current user ID' })
-  @ApiResponse({ status: 200, description: 'Courses found' })
-  async findByUserId(@CurrentUser('id') userId: string) {
-    return await this.coursesService.findByUserId(userId);
   }
 }
