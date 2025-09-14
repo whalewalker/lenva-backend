@@ -20,8 +20,8 @@ export abstract class AbstractRepository<T extends AbstractDocument> {
         return (await createdDocument.save()).toJSON() as unknown as T;
     }
 
-    async findOne(filter: FilterQuery<T>): Promise<T> {
-        const document = await this.model.findOne(filter)
+    async findOne(filter: FilterQuery<T>, projection?: Record<string, any>): Promise<T> {
+        const document = await this.model.findOne(filter, projection)
             .lean<T>(true);
 
         if (!document) {
@@ -31,8 +31,8 @@ export abstract class AbstractRepository<T extends AbstractDocument> {
         return document;
     }
 
-    async findByOneOrNull(filter: FilterQuery<T>): Promise<T | null> {
-        return this.model.findOne(filter)
+    async findOneOrNull(filter: FilterQuery<T>, projection?: Record<string, any>): Promise<T | null> {
+        return this.model.findOne(filter, projection)
             .lean<T>(true);
     }
 
@@ -48,8 +48,8 @@ export abstract class AbstractRepository<T extends AbstractDocument> {
         return updatedDocument;
     }
 
-    async find(filter: FilterQuery<T>): Promise<T[]> {
-        return this.model.find({...filter}).lean<T[]>(true);
+    async find(filter: FilterQuery<T>, projection?: Record<string, any>): Promise<T[]> {
+        return this.model.find({...filter}, projection).lean<T[]>(true);
     }
 
     async delete(filter: FilterQuery<T>): Promise<T> {

@@ -35,12 +35,6 @@ export class DocumentUpload extends AbstractDocument {
   documentHash: string;
 
   @Prop()
-  coverImageUrl?: string;
-
-  @Prop()
-  thumbnailUrl?: string;
-
-  @Prop()
   cloudinaryPublicId?: string;
 
   @Prop({ required: true, enum: ['pdf', 'text', 'url', 'image', 'video', 'audio', 'document', 'other'] })

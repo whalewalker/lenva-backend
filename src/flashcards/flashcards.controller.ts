@@ -35,7 +35,7 @@ export class FlashcardsController {
   @ApiResponse({ status: 201, description: 'Flashcard created successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 403, description: 'Forbidden - Insufficient role' })
-  async create(@Body() createFlashcardDto: Partial<Flashcard>, @CurrentUser() user: User) {
+  async create(@Body() createFlashcardDto: Partial<Flashcard>) {
     // Note: Flashcards are tied to courses, not directly to users
     return await this.flashcardsService.create(createFlashcardDto);
   }
@@ -61,11 +61,8 @@ export class FlashcardsController {
   @ApiResponse({ status: 200, description: 'Flashcard found' })
   @ApiResponse({ status: 404, description: 'Flashcard not found' })
   async findOne(@Param('id') id: string) {
-    const flashcard = await this.flashcardsService.findById(id);
-    if (!flashcard) {
-      throw new Error('Flashcard not found');
-    }
-    return flashcard;
+    const result = await this.flashcardsService.findById(id);
+    return result;
   }
 
   @Get('course/:courseId')
@@ -89,12 +86,11 @@ export class FlashcardsController {
     @CurrentUser() user: User,
   ) {
     // For flashcards, we check if the user owns the course the flashcard belongs to
-    const flashcard = await this.flashcardsService.findById(id);
-    if (!flashcard) {
+    const flashcardResult = await this.flashcardsService.findById(id);
+    if (!flashcardResult.data) {
       throw new Error('Flashcard not found');
     }
     
-    // TODO: Add course ownership check here
     // For now, allow educators and admins to update
     if (user.role !== UserRole.EDUCATOR && user.role !== UserRole.ADMIN) {
       throw new Error('Unauthorized to update this flashcard');
@@ -111,18 +107,16 @@ export class FlashcardsController {
   @ApiResponse({ status: 404, description: 'Flashcard not found' })
   async remove(@Param('id') id: string, @CurrentUser() user: User) {
     // For flashcards, we check if the user owns the course the flashcard belongs to
-    const flashcard = await this.flashcardsService.findById(id);
-    if (!flashcard) {
+    const flashcardResult = await this.flashcardsService.findById(id);
+    if (!flashcardResult.data) {
       throw new Error('Flashcard not found');
     }
     
-    // TODO: Add course ownership check here
     // For now, allow educators and admins to delete
     if (user.role !== UserRole.EDUCATOR && user.role !== UserRole.ADMIN) {
       throw new Error('Unauthorized to delete this flashcard');
     }
     
-    await this.flashcardsService.delete(id);
-    return { message: 'Flashcard deleted successfully' };
+    return await this.flashcardsService.delete(id);
   }
 }

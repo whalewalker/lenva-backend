@@ -9,20 +9,6 @@ import { StringOutputParser } from '@langchain/core/output_parsers';
 import { AbortController } from 'node-abort-controller';
 import { IAiService, GenerateOptions, ChainOptions, ModelConfig } from '../interfaces/ai-service.interface';
 
-class StreamingCallbackHandler extends BaseCallbackHandler {
-  name = 'streaming_callback_handler';
-  private readonly callback: (token: string) => void;
-
-  constructor(callback: (token: string) => void) {
-    super();
-    this.callback = callback;
-  }
-
-  async handleLLMNewToken(token: string) {
-    this.callback(token);
-  }
-}
-
 @Injectable()
 export class MistralApiService implements IAiService {
   private readonly logger = new Logger(MistralApiService.name);
@@ -173,10 +159,6 @@ export class MistralApiService implements IAiService {
       this.logger.error('Failed to parse AI response:', error);
       throw new Error(`Failed to parse AI response: ${error.message}`);
     }
-  }
-
-  private generateFallbackResponse(prompt: string): string {
-    return "I'm having technical issues right now. For health concerns, please consult with healthcare professionals. I'll be back to help soon.";
   }
 
   getModel(): string {

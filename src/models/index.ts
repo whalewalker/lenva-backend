@@ -15,4 +15,4 @@ export * from './progress.model';
 export * from './reminder-settings.model';
 export * from './recommendation-profile.model';
 export * from './activity-log.model';
-export * from './upload.model';
+export * from './document.model';

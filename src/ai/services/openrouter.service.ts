@@ -8,20 +8,6 @@ import { Runnable } from '@langchain/core/runnables';
 import { StringOutputParser } from '@langchain/core/output_parsers';
 import { IAiService, GenerateOptions, ChainOptions, ModelConfig } from '../interfaces/ai-service.interface';
 
-class StreamingCallbackHandler extends BaseCallbackHandler {
-  name = 'streaming_callback_handler';
-  private readonly callback: (token: string) => void;
-
-  constructor(callback: (token: string) => void) {
-    super();
-    this.callback = callback;
-  }
-
-  async handleLLMNewToken(token: string) {
-    this.callback(token);
-  }
-}
-
 @Injectable()
 export class OpenRouterService implements IAiService {
   private readonly logger = new Logger(OpenRouterService.name);

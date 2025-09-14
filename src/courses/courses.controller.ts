@@ -8,16 +8,19 @@ import {
   Post,
   UploadedFile,
   BadRequestException,
+  Query,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { CoursesService } from './courses.service';
 import { JwtAuthGuard } from '@/auth/guards/jwt-auth.guard';
 import { RolesGuard } from '@/auth/guards/roles.guard';
 import { CurrentUser } from '@/auth/decorators/current-user.decorator';
+import { Roles } from '@/auth/decorators/roles.decorator';
 import { User } from '@/models';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UploadCourseRequest } from './courses.dto';
-import { Difficulty } from '@/common/types';
+import { Difficulty, UserRole } from '@/common/types';
+import { PaginatedQuery } from '@/common/dto/paginated-query.dto';
 
 @ApiTags('courses')
 @Controller('courses')
@@ -69,11 +72,24 @@ export class CoursesController {
     return await this.coursesService.createStudentCourse(request, user);
   }
 
-  @Get('/me')
+  @Get()
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Get all courses with pagination and filtering' })
   @ApiResponse({ status: 200, description: 'Courses found' })
-  async findByUserId(@CurrentUser() user: User) {
-    return await this.coursesService.findByUserId(user._id);
+  async findAllCourses(@Query() query: PaginatedQuery) {
+    return await this.coursesService.find(query);
   }
+
+  @Get('/me')
+  @ApiOperation({ summary: 'Get current user courses with pagination' })
+  @ApiResponse({ status: 200, description: 'Courses found' })
+  async findByUserId(
+    @CurrentUser() user: User,
+    @Query() query: PaginatedQuery
+  ) {
+    return await this.coursesService.findByUserId({...query, userId: user._id});
+  }
+
 
   @Get(':id')
   @ApiOperation({ summary: 'Get course by ID' })

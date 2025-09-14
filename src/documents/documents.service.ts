@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Types } from 'mongoose';
-import { DocumentUpload } from '@/models/upload.model';
+import { DocumentUpload } from '@/models/document.model';
 import { DocumentsRepository } from './documents.repository';
 import { CloudinaryService } from '@/files/cloudinary.service';
 import { createHash } from 'crypto';
@@ -17,16 +17,13 @@ export class DocumentsService {
   async createDocument(
     file: Express.Multer.File,
     userId: string,
-    folder: string = 'lenva-documents',
   ): Promise<DocumentUpload> {
     try {
-      // Generate document hash based on file content
       const documentHash = createHash('sha256')
         .update(file.buffer)
         .digest('hex');
 
-      // Check if document already exists
-      const existingDocument = await this.documentsRepository.findByOneOrNull({
+      const existingDocument = await this.documentsRepository.findOneOrNull({
         documentHash,
         userId: new Types.ObjectId(userId),
       });
@@ -36,30 +33,12 @@ export class DocumentsService {
         return existingDocument;
       }
 
-      // Generate a unique short string for the document
-      const documentShortId = this.generateShortId();
-      
-      // Get file extension
-      const fileExtension = file.originalname.split('.').pop() || 'unknown';
-      
-      // Create custom folder path: lenva-document/userId/documentShortId.extension
-      const customFolder = `lenva-document/${userId}`;
-      const customPublicId = `${customFolder}/${documentShortId}.${fileExtension}`;
-
-      // Upload file to Cloudinary with custom public ID
-      const uploadResult = await this.cloudinaryService.uploadFile(
-        file,
-        customPublicId
-      );
-
-      // Determine document type based on MIME type
+      const uploadResult = await this.cloudinaryService.uploadFile(file);
       const documentType = this.getDocumentType(file.mimetype);
 
-      // Create document record with specific ID that matches the short ID
       const documentData = {
-        _id: documentShortId, // Use the short ID as the document ID
-        userId: new Types.ObjectId(userId),
-        title: file.originalname.replace(/\.[^/.]+$/, ''), // Remove file extension
+        userId,
+        title: file.originalname.replace(/\.[^/.]+$/, ''),
         fileName: uploadResult.fileName,
         originalName: file.originalname,
         fileUrl: uploadResult.url,
@@ -67,7 +46,6 @@ export class DocumentsService {
         fileSize: file.size,
         fileExtension: file.mimetype,
         documentHash,
-        coverImageUrl: '',
         thumbnailUrl: uploadResult.url,
         cloudinaryPublicId: uploadResult.publicId,
         type: documentType,
@@ -86,7 +64,7 @@ export class DocumentsService {
   }
 
   async findByHash(documentHash: string, userId: string): Promise<DocumentUpload | null> {
-    return this.documentsRepository.findByOneOrNull({
+    return this.documentsRepository.findOneOrNull({
       documentHash,
       userId: new Types.ObjectId(userId),
     });
@@ -96,33 +74,6 @@ export class DocumentsService {
     return this.documentsRepository.findOne({ _id: id });
   }
 
-  async updateProcessingStatus(
-    id: string,
-    status: 'pending' | 'processing' | 'completed' | 'failed',
-    error?: string,
-  ): Promise<DocumentUpload> {
-    const updateData: any = {
-      processingStatus: status,
-      processed: status === 'completed',
-    };
-
-    if (error) {
-      updateData.processingError = error;
-    }
-
-    return this.documentsRepository.findOneAndUpdate({ _id: id }, updateData);
-  }
-
-  private generateShortId(): string {
-    // Generate a unique short string (8 characters)
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let result = '';
-    for (let i = 0; i < 8; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return result;
-  }
-
   private getDocumentType(mimeType: string): string {
     if (mimeType === 'application/pdf') return 'pdf';
     if (mimeType.startsWith('image/')) return 'image';
@@ -130,7 +81,6 @@ export class DocumentsService {
     if (mimeType.startsWith('audio/')) return 'audio';
     if (mimeType.startsWith('text/')) return 'text';
     
-    // Office documents
     const officeTypes = [
       'application/msword',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',

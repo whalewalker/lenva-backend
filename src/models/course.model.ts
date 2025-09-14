@@ -23,10 +23,7 @@ export class Course extends AbstractDocument{
   description?: string;
 
   @Prop()
-  thumbnailUrl?: string;
-
-  @Prop()
-  coverImageUrl?: string;
+  fileUrl?: string;
 
   @Prop({ type: [String] })
   tags?: string[];
@@ -67,8 +64,6 @@ export class Course extends AbstractDocument{
         enum: ['idle', 'pending', 'processing', 'failed', 'completed'], 
         default: 'idle' 
       },
-      jobId: { type: String },
-      fileHash: { type: String }
     }
   })
   ai: {
@@ -98,6 +93,32 @@ CourseSchema.index({ classId: 1 }, { sparse: true });
 CourseSchema.index({ status: 1, visibility: 1 });
 CourseSchema.index({ tags: 1 });
 CourseSchema.index({ subject: 1, level: 1 });
+
+// Text search indexes for full-text search
+CourseSchema.index({
+  title: 'text',
+  description: 'text',
+  learningObjectives: 'text',
+  keyConcepts: 'text',
+  subject: 'text',
+  tags: 'text'
+}, {
+  weights: {
+    title: 10,
+    description: 5,
+    learningObjectives: 3,
+    keyConcepts: 3,
+    subject: 2,
+    tags: 1
+  },
+  name: 'course_text_search'
+});
+
+// Additional indexes for filtering and sorting
+CourseSchema.index({ createdAt: -1 });
+CourseSchema.index({ updatedAt: -1 });
+CourseSchema.index({ level: 1, status: 1 });
+CourseSchema.index({ 'ai.processingStatus': 1 });
 
 // Student Course Schema
 @Schema({collection: 'student_courses'})

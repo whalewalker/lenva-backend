@@ -1,175 +1,83 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { RedisService } from './redis.service';
+import courseSchema from '../schemas/ai/course.schema';
+import chapterSchema from '../schemas/ai/chapter.schema';
+import flashcardsSchema from '../schemas/ai/flashcards.schema';
+import quizSchema from '../schemas/ai/quiz.schema';
+import questionsSchema from '../schemas/ai/questions.schema';
 
 @Injectable()
-export class SchemaService {
-  private readonly schemas: Map<string, any> = new Map();
+export class SchemaService implements OnModuleInit {
   private readonly logger = new Logger(SchemaService.name);
+  private static readonly SCHEMA_CACHE_TTL = 86400; // 24 hours in seconds
+  private static readonly SCHEMA_KEY_PREFIX = 'schema:';
+  private isInitialized = false;
 
-  constructor() {
-    this.initializeSchemas();
+  constructor(private readonly redisService: RedisService) {}
+
+  async onModuleInit(): Promise<void> {
+    await this.initializeSchemas();
   }
 
-  getSchema(templateName: string): any | null {
-    return this.schemas.get(templateName) || null;
+  async getSchema(templateName: string): Promise<object | null> {
+    try {
+      if (!this.isInitialized) {
+        await this.initializeSchemas();
+      }
+
+      const cacheKey = `${SchemaService.SCHEMA_KEY_PREFIX}${templateName}`;
+      const cachedSchema = await this.redisService.get(cacheKey);
+      
+      if (cachedSchema) {
+        return JSON.parse(cachedSchema);
+      }
+      
+      this.logger.warn(`Schema not found in cache: ${templateName}`);
+      return null;
+    } catch (error) {
+      this.logger.error(`Error retrieving schema ${templateName}:`, error);
+      return null;
+    }
   }
 
-  getSchemaAsJsonString(templateName: string): string {
-    const schemaDefinition = this.getSchema(templateName);
+  async getSchemaAsJsonString(templateName: string): Promise<string> {
+    const schemaDefinition = await this.getSchema(templateName);
     if (!schemaDefinition) {
       return '';
     }
     return JSON.stringify(schemaDefinition, null, 2);
   }
 
-  private initializeSchemas(): void {
-    // Course schema
-    this.schemas.set('course', {
-      type: 'object',
-      properties: {
-        title: { type: 'string' },
-        description: { type: 'string' },
-        subject: { type: 'string' },
-        level: { type: 'string', enum: ['beginner', 'intermediate', 'advanced'] },
-        tags: { type: 'array', items: { type: 'string' } },
-        chapters: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              title: { type: 'string' },
-              content: { type: 'string' },
-              order: { type: 'number' },
-              assets: { type: 'array', items: { type: 'object' } }
-            },
-            required: ['title', 'content', 'order']
-          }
-        }
-      },
-      required: ['title', 'description', 'level', 'chapters']
-    });
+  private async initializeSchemas(): Promise<void> {
+    if (this.isInitialized) {
+      return;
+    }
 
-    // Chapter schema (using course schema structure)
-    this.schemas.set('chapter', {
-      type: 'object',
-      properties: {
-        title: { type: 'string' },
-        content: { type: 'string' },
-        order: { type: 'number' },
-        assets: { type: 'array', items: { type: 'object' } }
-      },
-      required: ['title', 'content', 'order']
-    });
+    try {
+      const schemas = {
+        course: courseSchema,
+        chapter: chapterSchema,
+        flashcards: flashcardsSchema,
+        quiz: quizSchema,
+        questions: questionsSchema,
+      };
 
-    // Flashcard schema
-    this.schemas.set('flashcards', {
-      type: 'object',
-      properties: {
-        flashcards: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              front: { type: 'string' },
-              back: { type: 'string' },
-              tags: { type: 'array', items: { type: 'string' } }
-            },
-            required: ['front', 'back']
-          }
-        }
-      },
-      required: ['flashcards']
-    });
+      const setPromises = Object.entries(schemas).map(async ([name, schema]) => {
+        const cacheKey = `${SchemaService.SCHEMA_KEY_PREFIX}${name}`;
+        await this.redisService.set(
+          cacheKey,
+          JSON.stringify(schema),
+          SchemaService.SCHEMA_CACHE_TTL
+        );
+      });
 
-    this.schemas.set('flashcard', {
-      type: 'object',
-      properties: {
-        front: { type: 'string' },
-        back: { type: 'string' },
-        tags: { type: 'array', items: { type: 'string' } }
-      },
-      required: ['front', 'back']
-    });
+      await Promise.all(setPromises);
 
-    // Quiz schema
-    this.schemas.set('quiz', {
-      type: 'object',
-      properties: {
-        title: { type: 'string' },
-        description: { type: 'string' },
-        questions: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              text: { type: 'string' },
-              type: { type: 'string', enum: ['multiple_choice', 'true_false', 'single-choice'] },
-              options: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    label: { type: 'string' },
-                    value: { type: 'string' },
-                    isCorrect: { type: 'boolean' }
-                  },
-                  required: ['label', 'value', 'isCorrect']
-                }
-              },
-              explanation: { type: 'string' },
-              difficulty: { type: 'string', enum: ['easy', 'medium', 'hard'] },
-              order: { type: 'number' }
-            },
-            required: ['text', 'type', 'options']
-          }
-        }
-      },
-      required: ['title', 'questions']
-    });
-
-    // Question schema
-    this.schemas.set('questions', {
-      type: 'object',
-      properties: {
-        questions: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              text: { type: 'string' },
-              type: { type: 'string', enum: ['multiple_choice', 'multi_select', 'true_false', 'short_answer', 'fill_blank', 'matching', 'cloze'] },
-              options: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    label: { type: 'string' },
-                    value: { type: 'string' },
-                    isCorrect: { type: 'boolean' }
-                  },
-                  required: ['label', 'value', 'isCorrect']
-                }
-              },
-              answer: {
-                type: 'object',
-                properties: {
-                  index: { type: 'number' },
-                  indices: { type: 'array', items: { type: 'number' } },
-                  text: { type: 'string' },
-                  pairs: { type: 'array', items: { type: 'array', items: { type: 'string' } } }
-                }
-              },
-              explanation: { type: 'string' },
-              difficulty: { type: 'string', enum: ['easy', 'medium', 'hard'] },
-              tags: { type: 'array', items: { type: 'string' } },
-              order: { type: 'number' }
-            },
-            required: ['text', 'type']
-          }
-        }
-      },
-      required: ['questions']
-    });
-
-    this.logger.log(`Initialized ${this.schemas.size} schema validators`);
+      this.isInitialized = true;
+      this.logger.log(`Initialized ${Object.keys(schemas).length} schema validators in Redis cache`);
+    } catch (error) {
+      this.logger.error('Error loading schemas to Redis:', error);
+      throw error;
+    }
   }
 }

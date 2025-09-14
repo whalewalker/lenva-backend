@@ -5,6 +5,7 @@ import { User } from '../models/user.model';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersRepository } from './users.repository';
+import { ApiResponse } from '@/common/dto/response.dto';
 
 @Injectable()
 export class UsersService {
@@ -12,7 +13,18 @@ export class UsersService {
     private readonly usersRepository: UsersRepository,
   ) {}
 
-  async create(createUserDto: CreateUserDto): Promise<User> {
+  async create(createUserDto: CreateUserDto): Promise<ApiResponse<User>> {
+    const { password, ...userData } = createUserDto;
+    const passwordHash = await bcrypt.hash(password, 10);
+    const user = await this.usersRepository.create({
+      ...userData,
+      passwordHash,
+      avatar: userData.avatar || '', // Provide default value for required field
+    });
+    return ApiResponse.success(user, 'User created successfully');
+  }
+
+  async createInternal(createUserDto: CreateUserDto): Promise<User> {
     const { password, ...userData } = createUserDto;
     const passwordHash = await bcrypt.hash(password, 10);
     const user = await this.usersRepository.create({
@@ -27,11 +39,20 @@ export class UsersService {
     return bcrypt.compare(password, user.passwordHash);
   }
 
-  async findAll(): Promise<User[]> {
-    return this.usersRepository.find({});
+  async findAll(): Promise<ApiResponse<User[]>> {
+    const users = await this.usersRepository.find({});
+    return ApiResponse.success(users, 'Users retrieved successfully');
   }
 
-  async findOne(id: string): Promise<User> {
+  async findOne(id: string): Promise<ApiResponse<User>> {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new NotFoundException(`Invalid user ID format`);
+    }
+    const user = await this.usersRepository.findOne({ _id: id });
+    return ApiResponse.success(user, 'User retrieved successfully');
+  }
+
+  async findOneInternal(id: string): Promise<User> {
     if (!Types.ObjectId.isValid(id)) {
       throw new NotFoundException(`Invalid user ID format`);
     }
@@ -45,20 +66,20 @@ export class UsersService {
   }
 
   async existsByEmail(email: string): Promise<boolean> {
-     const user = await this.usersRepository.findByOneOrNull({ email });
+     const user = await this.usersRepository.findOneOrNull({ email });
      return !!user;
   }
 
   async findByGoogleId(googleId: string): Promise<User | null> {
-      return await this.usersRepository.findByOneOrNull({ 'oauth.providerUserId': googleId });
+      return await this.usersRepository.findOneOrNull({ 'oauth.providerUserId': googleId });
   }
 
-  async update(id: string, updateUserDto: UpdateUserDto): Promise<User> {
+  async update(id: string, updateUserDto: UpdateUserDto): Promise<ApiResponse<User>> {
     if (!Types.ObjectId.isValid(id)) {
       throw new NotFoundException(`Invalid user ID format`);
     }
     const user = await this.usersRepository.findOneAndUpdate({ _id: id }, updateUserDto);
-    return user;
+    return ApiResponse.success(user, 'User updated successfully');
   }
 
   async updateRefreshToken(id: string, refreshToken: string | null): Promise<void> {
@@ -88,10 +109,11 @@ export class UsersService {
     await this.usersRepository.findOneAndUpdate({ _id: id }, updateData);
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: string): Promise<ApiResponse<void>> {
     if (!Types.ObjectId.isValid(id)) {
       throw new NotFoundException(`Invalid user ID format`);
     }
     await this.usersRepository.delete({ _id: id });
+    return ApiResponse.success(undefined, 'User deleted successfully');
   }
 }

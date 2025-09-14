@@ -14,6 +14,7 @@ export interface UploadResult {
 @Injectable()
 export class CloudinaryService {
   private readonly logger = new Logger(CloudinaryService.name);
+  private readonly folder = 'lenva-documents';
 
   constructor(private readonly configService: ConfigService) {
     cloudinary.config({
@@ -23,40 +24,32 @@ export class CloudinaryService {
     });
   }
 
-  async uploadFile(
-    file: Express.Multer.File,
-    folder: string = 'uploads'
-  ): Promise<UploadResult> {
+  async uploadFile(file: Express.Multer.File): Promise<UploadResult> {
     try {
       this.logger.log(`Uploading file: ${file.originalname} (${file.size} bytes)`);
 
-      // Create readable stream from buffer
       const stream = new Readable();
       stream.push(file.buffer);
       stream.push(null);
 
-      // Generate unique public ID
       const timestamp = Date.now();
-      const cleanFileName = file.originalname
-        .replace(/\.[^/.]+$/, '') // Remove extension
-        .replace(/[^a-zA-Z0-9]/g, '_'); // Replace special chars with underscore
+      const extension = file.originalname.split('.').pop() || '';
+      const nameWithoutExt = file.originalname.replace(/\.[^/.]+$/, '');
+      const cleanFileName = nameWithoutExt.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 50);
       
-      const publicId = `${folder}/${timestamp}_${cleanFileName}`;
+      const publicId = `${this.folder}/${timestamp}_${cleanFileName}${extension ? '.' + extension : ''}`;
 
-      // Set upload options based on file type
       const uploadOptions: any = {
         public_id: publicId,
         resource_type: this.getResourceType(file.mimetype),
         overwrite: true,
       };
 
-      // For images, enable auto format and quality optimization
       if (file.mimetype.startsWith('image/')) {
         uploadOptions.format = 'auto';
         uploadOptions.quality = 'auto:good';
       }
 
-      // Upload to Cloudinary
       const result = await new Promise<any>((resolve, reject) => {
         const uploadStream = cloudinary.uploader.upload_stream(
           uploadOptions,
@@ -103,6 +96,4 @@ export class CloudinaryService {
     if (mimetype.startsWith('video/')) return 'video';
     return 'raw';
   }
-
-
 }

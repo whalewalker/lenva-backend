@@ -49,7 +49,11 @@ export class UsersController {
   @ApiOperation({ summary: 'Get current user profile' })
   @ApiResponse({ status: 200, description: 'Current user profile' })
   getProfile(@Request() req) {
-    return req.user.toResponseObject();
+    return {
+      message: 'Current user profile retrieved successfully',
+      data: req.user.toResponseObject(),
+      timestamp: new Date().toISOString()
+    };
   }
 
   @Get(':id')

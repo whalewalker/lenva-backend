@@ -9,5 +9,6 @@ import { CommonModule } from "@/common/common.module";
     imports: [ModelsModule, CommonModule],
     controllers: [ChaptersController],
     providers: [ChaptersService, ChaptersRepository],
+    exports: [ChaptersService],
 })
 export class ChaptersModule {}

@@ -8,8 +8,6 @@ import {
   Delete,
   UseGuards,
   Query,
-  UseInterceptors,
-  ClassSerializerInterceptor,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { QuizzesService } from './quizzes.service';
@@ -23,7 +21,7 @@ import { User } from '../models/user.model';
 
 @ApiTags('quizzes')
 @Controller('quizzes')
-@UseInterceptors(ClassSerializerInterceptor)
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class QuizzesController {
   constructor(private readonly quizzesService: QuizzesService) {}
 
@@ -35,13 +33,11 @@ export class QuizzesController {
   @ApiResponse({ status: 201, description: 'Quiz created successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 403, description: 'Forbidden - Insufficient role' })
-  async create(@Body() createQuizDto: Partial<Quiz>, @CurrentUser() user: User) {
-    // Note: Quizzes are tied to courses, not directly to users
+  async create(@Body() createQuizDto: Partial<Quiz>) {
     return await this.quizzesService.create(createQuizDto);
   }
 
   @Get()
-  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all quizzes' })
   @ApiResponse({ status: 200, description: 'List of quizzes retrieved successfully' })
@@ -51,21 +47,16 @@ export class QuizzesController {
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get quiz by ID' })
   @ApiResponse({ status: 200, description: 'Quiz found' })
   @ApiResponse({ status: 404, description: 'Quiz not found' })
   async findOne(@Param('id') id: string) {
-    const quiz = await this.quizzesService.findById(id);
-    if (!quiz) {
-      throw new Error('Quiz not found');
-    }
-    return quiz;
+    const result = await this.quizzesService.findById(id);
+    return result;
   }
 
   @Get('course/:courseId')
-  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get quizzes by course ID' })
   @ApiResponse({ status: 200, description: 'Quizzes found' })
@@ -73,8 +64,8 @@ export class QuizzesController {
     return await this.quizzesService.findByCourseId(courseId);
   }
 
+  @Roles(UserRole.EDUCATOR, UserRole.ADMIN)
   @Patch(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update quiz' })
   @ApiResponse({ status: 200, description: 'Quiz updated successfully' })
@@ -84,63 +75,26 @@ export class QuizzesController {
     @Body() updateQuizDto: Partial<Quiz>,
     @CurrentUser() user: User,
   ) {
-    // For quizzes, we check if the user owns the course the quiz belongs to
-    const quiz = await this.quizzesService.findById(id);
-    if (!quiz) {
-      throw new Error('Quiz not found');
-    }
-    
-    // TODO: Add course ownership check here
-    // For now, allow educators and admins to update
-    if (user.role !== UserRole.EDUCATOR && user.role !== UserRole.ADMIN) {
-      throw new Error('Unauthorized to update this quiz');
-    }
-    
     return await this.quizzesService.update(id, updateQuizDto);
   }
 
+  @Roles(UserRole.EDUCATOR, UserRole.ADMIN)
   @Delete(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Delete quiz' })
   @ApiResponse({ status: 200, description: 'Quiz deleted successfully' })
   @ApiResponse({ status: 404, description: 'Quiz not found' })
   async remove(@Param('id') id: string, @CurrentUser() user: User) {
-    // For quizzes, we check if the user owns the course the quiz belongs to
-    const quiz = await this.quizzesService.findById(id);
-    if (!quiz) {
-      throw new Error('Quiz not found');
-    }
-    
-    // TODO: Add course ownership check here
-    // For now, allow educators and admins to delete
-    if (user.role !== UserRole.EDUCATOR && user.role !== UserRole.ADMIN) {
-      throw new Error('Unauthorized to delete this quiz');
-    }
-    
-    await this.quizzesService.delete(id);
-    return { message: 'Quiz deleted successfully' };
+    return await this.quizzesService.delete(id);
   }
 
   @Post(':id/publish')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.EDUCATOR, UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Publish quiz' })
   @ApiResponse({ status: 200, description: 'Quiz published successfully' })
   @ApiResponse({ status: 404, description: 'Quiz not found' })
   async publish(@Param('id') id: string, @CurrentUser() user: User) {
-    // For quizzes, we check if the user owns the course the quiz belongs to
-    const quiz = await this.quizzesService.findById(id);
-    if (!quiz) {
-      throw new Error('Quiz not found');
-    }
-    
-    // TODO: Add course ownership check here
-    // For now, allow educators and admins to publish
-    if (user.role !== UserRole.EDUCATOR && user.role !== UserRole.ADMIN) {
-      throw new Error('Unauthorized to publish this quiz');
-    }
-    
     return await this.quizzesService.publish(id);
   }
 }

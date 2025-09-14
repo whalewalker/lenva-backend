@@ -6,8 +6,6 @@ import {
   UseGuards,
   Request,
   Res,
-  Query,
-  HttpStatus,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { Response } from 'express';
@@ -16,7 +14,6 @@ import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
-import { LocalAuthGuard } from './guards/local-auth.guard';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
@@ -48,9 +45,8 @@ export class AuthController {
   @UseGuards(GoogleAuthGuard)
   @ApiOperation({ summary: 'Initiate Google OAuth login' })
   @ApiResponse({ status: 302, description: 'Redirect to Google OAuth' })
-  async googleAuth(@Query('role') role?: string) {
+  async googleAuth() {
     // The guard handles the redirect to Google
-    // The role parameter can be used to set default role after OAuth
   }
 
   @Get('google/callback')
@@ -62,7 +58,7 @@ export class AuthController {
     
     // Redirect to frontend with tokens
     const frontendUrl = this.configService.get('FRONTEND_URL');
-    const redirectUrl = `${frontendUrl}/auth/callback?access_token=${result.access_token}&refresh_token=${result.refresh_token}`;
+    const redirectUrl = `${frontendUrl}/auth/callback?access_token=${result.data.access_token}&refresh_token=${result.data.refresh_token}`;
     
     return res.redirect(redirectUrl);
   }
@@ -84,8 +80,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Logout user' })
   @ApiResponse({ status: 200, description: 'Logout successful' })
   async logout(@Request() req) {
-    await this.authService.logout(req.user.id);
-    return { message: 'Logout successful' };
+    return await this.authService.logout(req.user.id);
   }
 
   @Get('profile')
@@ -94,6 +89,10 @@ export class AuthController {
   @ApiOperation({ summary: 'Get current user profile' })
   @ApiResponse({ status: 200, description: 'User profile retrieved successfully' })
   getProfile(@Request() req) {
-    return req.user.toResponseObject();
+    return { 
+      message: 'User profile retrieved successfully',
+      data: req.user.toResponseObject(),
+      timestamp: new Date().toISOString()
+    };
   }
 }

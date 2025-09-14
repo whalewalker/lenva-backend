@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { DocumentUpload, DocumentUploadSchema } from '@/models/upload.model';
+import { DocumentUpload, DocumentUploadSchema } from '@/models/document.model';
 import { FilesModule } from '@/files/files.module';
 import { DocumentsRepository } from './documents.repository';
 import { DocumentsService } from './documents.service';

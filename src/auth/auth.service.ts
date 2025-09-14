@@ -11,6 +11,7 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { JwtPayload, AuthResponse, UserRole } from '../common/types';
 import { User } from '@/models';
+import { ApiResponse } from '@/common/dto/response.dto';
 
 @Injectable()
 export class AuthService {
@@ -29,30 +30,30 @@ export class AuthService {
     return null;
   }
 
-  async login(loginDto: LoginDto): Promise<AuthResponse> {
+  async login(loginDto: LoginDto): Promise<ApiResponse<AuthResponse>> {
     const user = await this.validateUser(loginDto.email, loginDto.password);
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
     }
-    return this.generateTokens(user);
+    const tokens = await this.generateTokens(user);
+    return ApiResponse.success(tokens, 'Login successful');
   }
 
-  async register(registerDto: RegisterDto): Promise<{ message: string; user: { _id: string; email: string; name: string; role: string } }> {
+  async register(registerDto: RegisterDto): Promise<ApiResponse<{ _id: string; email: string; name: string; role: string }>> {
     const exist = await this.usersService.existsByEmail(registerDto.email);
     if (exist) {
       throw new ConflictException('Email already exists');
     }
 
-    const user = await this.usersService.create(registerDto);
-    return {
-      message: 'Registration successful. Please login to continue.',
-      user: {
-        _id: user._id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-      },
+    const user = await this.usersService.createInternal(registerDto);
+    const responseData = {
+      _id: user._id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
     };
+    
+    return ApiResponse.success(responseData, 'Registration successful. Please login to continue.');
   }
 
   async validateGoogleUser(googleUser: {
@@ -85,7 +86,7 @@ export class AuthService {
   }
 
   private async createGoogleUser(googleUser: any): Promise<User> {
-    const user = await this.usersService.create({
+    const user = await this.usersService.createInternal({
       email: googleUser.email,
       name: googleUser.name,
       password: Math.random().toString(36),
@@ -93,15 +94,16 @@ export class AuthService {
     });
     
     await this.linkGoogleAccount(user._id, googleUser);
-    return this.usersService.findOne(user._id);
+    return this.usersService.findOneInternal(user._id);
   }
 
-  async googleLogin(user: User): Promise<AuthResponse> {
-    return this.generateTokens(user);
+  async googleLogin(user: User): Promise<ApiResponse<AuthResponse>> {
+    const tokens = await this.generateTokens(user);
+    return ApiResponse.success(tokens, 'Google login successful');
   }
 
-  async refreshTokens(userId: string, refreshToken: string): Promise<AuthResponse> {
-    const user = await this.usersService.findOne(userId);
+  async refreshTokens(userId: string, refreshToken: string): Promise<ApiResponse<AuthResponse>> {
+    const user = await this.usersService.findOneInternal(userId);
     if (!user?.refreshToken) {
       throw new UnauthorizedException('Access Denied');
     }
@@ -111,11 +113,13 @@ export class AuthService {
       throw new UnauthorizedException('Access Denied');
     }
 
-    return this.generateTokens(user);
+    const tokens = await this.generateTokens(user);
+    return ApiResponse.success(tokens, 'Tokens refreshed successfully');
   }
 
-  async logout(userId: string): Promise<void> {
+  async logout(userId: string): Promise<ApiResponse<void>> {
     await this.usersService.updateRefreshToken(userId, null);
+    return ApiResponse.success(undefined, 'Logout successful');
   }
 
   private async generateTokens(user: User): Promise<AuthResponse> {

@@ -7,7 +7,7 @@ import { AbstractRepository } from '@/repo/abstract.repository';
 
 @Injectable()
 export class ChaptersRepository extends AbstractRepository<Chapter> {
-    constructor(@InjectModel(Chapter.name) private readonly chapterModel: Model<Chapter>) {
+    constructor(@InjectModel(Chapter.name) chapterModel: Model<Chapter>) {
         super(chapterModel, Chapter.name);
     }
 }

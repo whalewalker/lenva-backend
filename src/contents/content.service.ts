@@ -11,6 +11,20 @@ export interface ContentGenerationRequest {
   difficulty?: Difficulty;
 }
 
+export interface QuizGenerationRequest {
+  chapterTitle: string;
+  chapterContent: string;
+  difficulty: Difficulty;
+  count?: number;
+}
+
+export interface FlashcardGenerationRequest {
+  chapterTitle: string;
+  chapterContent: string;
+  difficulty: Difficulty;
+  count?: number;
+}
+
 @Injectable()
 export class ContentService {
   private readonly logger = new Logger(ContentService.name);
@@ -32,7 +46,7 @@ export class ContentService {
 
       const [extractedText, courseSchema, aiPrompt] = await Promise.all([
         this.textExtractionService.extractTextFromFile(request.file),
-        Promise.resolve(this.schemaService.getSchema('course')),
+        this.schemaService.getSchema('course'),
         this.aiPromptService.getProcessedTemplate("course", {difficulty: request.difficulty || 'easy'})
       ]);
 
@@ -53,6 +67,68 @@ export class ContentService {
     } catch (error) {
       this.logger.error('Content generation failed:', error);
       throw new Error(`Content generation failed: ${error.message}`);
+    }
+  }
+
+  async generateQuiz(request: QuizGenerationRequest): Promise<any> {
+    try {
+      this.logger.log(`Starting quiz generation for chapter: ${request.chapterTitle}`);
+
+      const [quizSchema, aiPrompt] = await Promise.all([
+        this.schemaService.getSchema('quiz'),
+        this.aiPromptService.getProcessedTemplate("quiz", {
+          title: request.chapterTitle,
+          difficulty: request.difficulty,
+          count: request.count || 6,
+          content: request.chapterContent
+        })
+      ]);
+
+      if (!quizSchema) {
+        throw new Error('Quiz schema not found');
+      }
+
+      const quiz = await this.aiService.generate({
+        prompt: aiPrompt,
+        input: request.chapterContent,
+      }, AIProvider.MISTRAL);
+
+      this.logger.log(`Quiz generation completed successfully for ${request.chapterTitle}`);
+      return quiz;
+    } catch (error) {
+      this.logger.error('Quiz generation failed:', error);
+      throw new Error(`Quiz generation failed: ${error.message}`);
+    }
+  }
+
+  async generateFlashcards(request: FlashcardGenerationRequest): Promise<any> {
+    try {
+      this.logger.log(`Starting flashcard generation for chapter: ${request.chapterTitle}`);
+
+      const [flashcardsSchema, aiPrompt] = await Promise.all([
+        this.schemaService.getSchema('flashcards'),
+        this.aiPromptService.getProcessedTemplate("flashcards", {
+          title: request.chapterTitle,
+          difficulty: request.difficulty,
+          count: request.count || 10,
+          content: request.chapterContent
+        })
+      ]);
+
+      if (!flashcardsSchema) {
+        throw new Error('Flashcards schema not found');
+      }
+
+      const flashcards = await this.aiService.generate({
+        prompt: aiPrompt,
+        input: request.chapterContent,
+      }, AIProvider.MISTRAL);
+
+      this.logger.log(`Flashcard generation completed successfully for ${request.chapterTitle}`);
+      return flashcards;
+    } catch (error) {
+      this.logger.error('Flashcard generation failed:', error);
+      throw new Error(`Flashcard generation failed: ${error.message}`);
     }
   }
 }
